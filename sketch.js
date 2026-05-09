@@ -64,6 +64,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 				modelInstance.scale.set(0.3, 0.3, 0.3);
 				modelInstance.position.set(0, 0, -1).applyMatrix4(controller.matrixWorld);
 				modelInstance.quaternion.setFromRotationMatrix(controller.matrixWorld);
+				modelInstance.rotateY(-Math.PI / 2); // 顺时针旋转90度
 				scene.add(modelInstance);
 				modelInstances.push(modelInstance);
 			}
