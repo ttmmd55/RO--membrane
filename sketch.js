@@ -1,96 +1,141 @@
 import * as THREE from 'three';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
-import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-		let camera, scene, renderer;
-		let controller;
+let camera, scene, renderer;
+let controller;
 
-		const modelInstances = [];// Declare an array to store instances of the 3D model
-		
-		init();
-		animate();
+const modelInstances = [];
 
-		// Initialize the scene
-		function init() {
+init();
+animate();
 
-			const container = document.createElement('div');
-			document.body.appendChild(container);
+function init() {
 
-			scene = new THREE.Scene();
+	const container = document.createElement('div');
+	document.body.appendChild(container);
 
-			camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+	scene = new THREE.Scene();
 
-			// Create a new HemisphereLight to provide ambient lighting to the scene
-			const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-			light.position.set(0.5, 1, 0.25);
-			scene.add(light);
+	camera = new THREE.PerspectiveCamera(
+		70,
+		window.innerWidth / window.innerHeight,
+		0.01,
+		20
+	);
 
-			// Create a new DirectionalLight to provide directional lighting to the scene
-			const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-			directionalLight.position.set(0, 1, 0);
-			scene.add(directionalLight);
+	// Light
+	const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+	light.position.set(0.5, 1, 0.25);
+	scene.add(light);
 
+	const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+	directionalLight.position.set(0, 1, 0);
+	scene.add(directionalLight);
 
-			// Create a new WebGLRenderer with antialiasing and alpha support
-			renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-			renderer.setPixelRatio(window.devicePixelRatio);
-			renderer.setSize(window.innerWidth, window.innerHeight);
-			renderer.xr.enabled = true;
-			container.appendChild(renderer.domElement);
+	// Renderer（关键：截图支持）
+	renderer = new THREE.WebGLRenderer({
+		antialias: true,
+		alpha: true,
+		preserveDrawingBuffer: true // ✅ 允许截图
+	});
 
+	renderer.setPixelRatio(window.devicePixelRatio);
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	renderer.xr.enabled = true;
 
-			// Add ARButton to the document body
-			document.body.appendChild(ARButton.createButton(renderer));
+	container.appendChild(renderer.domElement);
 
-			// Load the 3D model using the GLTFLoader
-			const loader = new GLTFLoader();
-			loader.load( 'assets/ro.glb', function(gltf) {
-				const model = gltf.scene;
-				modelInstances.push(model);
-			
-			});
+	// AR Button
+	document.body.appendChild(ARButton.createButton(renderer));
 
-			// Create a new controller and add it to the scene
-			controller = renderer.xr.getController(0);
-			controller.addEventListener('select', onSelect);
-			scene.add(controller);
+	// ===== 保存按钮（新增）=====
+	const saveBtn = document.createElement('button');
+	saveBtn.innerHTML = '📷 保存照片';
 
-			// Add an event listener for window resize
-			window.addEventListener('resize', onWindowResize);
-			
-			// Handle the controller select event
-			function onSelect() {
-				const modelInstance = modelInstances[modelInstances.length - 1].clone();
-				modelInstance.scale.set(0.3, 0.3, 0.3);
-				modelInstance.position.set(0, 0, -1).applyMatrix4(controller.matrixWorld);
-				modelInstance.quaternion.setFromRotationMatrix(controller.matrixWorld);
-				modelInstance.rotateY(-Math.PI / 2); // 顺时针旋转90度
-				scene.add(modelInstance);
-				modelInstances.push(modelInstance);
-			}
+	saveBtn.style.position = 'absolute';
+	saveBtn.style.bottom = '20px';
+	saveBtn.style.left = '20px';
+	saveBtn.style.zIndex = '999';
+	saveBtn.style.padding = '12px 18px';
+	saveBtn.style.fontSize = '14px';
 
-			
+	document.body.appendChild(saveBtn);
 
-		}
+	saveBtn.addEventListener('click', saveScreenshot);
 
-		//resizes the browser window
-		function onWindowResize() {
+	// Load Model
+	const loader = new GLTFLoader();
 
-			camera.aspect = window.innerWidth / window.innerHeight;
-			camera.updateProjectionMatrix();
+	loader.load('assets/ro.glb', function (gltf) {
 
-			renderer.setSize(window.innerWidth, window.innerHeight);
+		const model = gltf.scene;
 
-		}
+		modelInstances.push(model);
 
-		//Create animation loop command
-		function animate() {
-			renderer.setAnimationLoop(render);
+	});
 
-		}
+	// Controller
+	controller = renderer.xr.getController(0);
+	controller.addEventListener('select', onSelect);
+	scene.add(controller);
 
-		function render() {
+	window.addEventListener('resize', onWindowResize);
+}
 
-			renderer.render(scene, camera);
+// ===== 放置模型 =====
+function onSelect() {
 
-		}
+	const modelInstance = modelInstances[modelInstances.length - 1].clone();
+
+	modelInstance.scale.set(0.3, 0.3, 0.3);
+
+	modelInstance.position
+		.set(0, 0, -1)
+		.applyMatrix4(controller.matrixWorld);
+
+	modelInstance.quaternion.setFromRotationMatrix(controller.matrixWorld);
+
+	// 顺时针旋转90度（你的需求）
+	modelInstance.rotateY(-Math.PI / 2);
+
+	scene.add(modelInstance);
+
+	modelInstances.push(modelInstance);
+}
+
+// ===== 截图功能（新增）=====
+function saveScreenshot() {
+
+	// iPad XRViewer 提示（更稳定）
+	if (/iPad|iPhone|Macintosh/.test(navigator.userAgent)) {
+
+		alert('请使用 iPad 系统截图：电源键 + 音量+');
+
+		return;
+	}
+
+	// Web fallback（只能截3D canvas）
+	const a = document.createElement('a');
+	a.download = 'AR_Snapshot.png';
+	a.href = renderer.domElement.toDataURL('image/png');
+	a.click();
+}
+
+// Resize
+function onWindowResize() {
+
+	camera.aspect = window.innerWidth / window.innerHeight;
+	camera.updateProjectionMatrix();
+
+	renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// Animate
+function animate() {
+	renderer.setAnimationLoop(render);
+}
+
+function render() {
+	renderer.render(scene, camera);
+}
